@@ -1,7 +1,9 @@
 import pandas as pd
 import glob
 import os
+import numpy as np
 
+# load all trajectories.txt files & merge
 def load_all_ngsim_txt(data_folder):
     
     pattern = os.path.join(data_folder, '**', '*.txt')
@@ -31,35 +33,49 @@ def load_all_ngsim_txt(data_folder):
 
     return pd.concat(all_dfs, ignore_index=True)
 
+# added lane change intent column to the data
 def label_lane_changes(group, horizon=50):
-    
-    # Look ahead 50 frames within this vehicle's trajectory
-    group['Future_Lane'] = group['Lane_ID'].shift(-horizon)
-    
-    # Initialize as 0 (No change)
-    group['lane_change'] = 0
-    
-    # Filter for valid future look-aheads (ignore last 5s of vehicle life)
-    mask = group['Future_Lane'].notna()
-    
-    # Lane ID assignment: Lane 1 is farthest left lane; lane 6 is farthest 
-    # right lane. Lane 7 is the on-ramp at Powell Street, and Lane 9 is the shoulder on the right-side. )
-    # Change Left: Future Lane ID is smaller than current
-    group.loc[mask & (group['Future_Lane'] < group['Lane_ID']), 'lane_change'] = 1
-    
-    # Change Right: Future Lane ID is larger than current
-    group.loc[mask & (group['Future_Lane'] > group['Lane_ID']), 'lane_change'] = 2
-    
+    lanes = group['Lane_ID'].values
+    n = len(lanes)
+    labels = np.zeros(n, dtype=int)
+
+    for i in range(n):
+        current_lane = lanes[i]
+        
+        # Define the search window (from now up to 5s in the future)
+        # We use i+1 to ensure we are looking at the "future"
+        future_window = lanes[i+1 : i + horizon + 1]
+        
+        if len(future_window) == 0:
+            labels[i] = 0
+            continue
+            
+        # Find the first lane in the future window that is different from current
+        # This captures the 'intent' the moment it enters the 5s horizon
+        diff_lanes = future_window[future_window != current_lane]
+        
+        if len(diff_lanes) > 0:
+            first_future_lane = diff_lanes[0]
+            if first_future_lane < current_lane:
+                labels[i] = 1  # Anticipating Left Change
+            else:
+                labels[i] = 2  # Anticipating Right Change
+        else:
+            labels[i] = 0  # No change in the next 5s
+            
+    group['lane_change'] = labels
     return group
 
+# preprocess all data files and add lane change labels
 def preprocess_all(data_folder="data", horizon=50):
-    df = load_all_ngsim_txt(data_folder)
-    # Apply the labeling per vehicle
-    df = df.groupby('Vehicle_Global_ID', group_keys=False).apply(label_lane_changes)
 
-    # Drop the helper column
-    df = df.drop(columns=['Future_Lane'])
+    # load and merge all input txt files
+    df = load_all_ngsim_txt(data_folder)
+
+    # apply lane change labels per vehicle group
+    df = df.groupby('Vehicle_Global_ID', group_keys=False).apply(label_lane_changes)
 
     # Quick check on the distribution
     print(df['lane_change'].value_counts())
+    
     return df

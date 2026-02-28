@@ -4,11 +4,11 @@ import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
 from IPython.display import HTML
 
-def visualize_bev(df, sample_frames=500, lane_width=12, view_length=500):
+def visualize_bev(df, start_frame_index=0, sample_frames=500, lane_width=12, view_length=500):
     fig, ax = plt.subplots(figsize=(18,6))
     
     class_colors = {1: '#3498db', 2: '#2ecc71', 3: '#e74c3c'}
-    frames = sorted(df["Frame_ID"].unique())[:sample_frames]
+    frames = sorted(df["Frame_ID"].unique())[start_frame_index:start_frame_index+sample_frames]
 
     def update(frame):
         ax.cla() # Clear everything to redraw the frame
@@ -44,7 +44,7 @@ def visualize_bev(df, sample_frames=500, lane_width=12, view_length=500):
                 ax.text(
                     veh['Local_Y'], 
                     veh['Local_X'], 
-                    str(int(veh['Veh_ID'])),
+                    str(int(veh['Vehicle_Global_ID'])),
                     color='black',
                     fontsize=8,
                     fontweight='bold',
