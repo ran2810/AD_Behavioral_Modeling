@@ -1,0 +1,7 @@
+# Ignore Python cache folders
+*__pycache__
+*.ipynb_checkpoints
+
+# ignore label files
+*.csv
+*.txt
