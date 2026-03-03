@@ -113,13 +113,13 @@ def calculate_features(df):
     # # # We saw spikes of +4.0; highway moves rarely exceed 1.0 m/s
     # df['v_lat'] = df['v_lat'].clip(-1.2, 1.2)
     
-    # # 2. Spike-Killer (Median Filter) 
+    # # (Median Filter) 
     # # This removes 'salt and pepper' noise without blurring the signal edges
     # df['v_lat'] = df.groupby('Vehicle_Global_ID')['v_lat'].transform(
     #     lambda x: x.rolling(window=3, center=True).median()
     # ).fillna(df['v_lat'])
 
-    # df['v_lat'] = apply_kalman_smoothing(df)
+    #df['v_lat'] = apply_kalman_smoothing(df)
 
     
     # Longitudinal Acceleration (if not already provided or to verify)

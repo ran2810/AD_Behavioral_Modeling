@@ -140,7 +140,7 @@ def label_lane_changes(group, horizon=50):
     return group
 
 # preprocess all data files and add lane change labels
-def preprocess_all(data_folder="data", horizon=50):
+def preprocess_all(data_folder="data"):
 
     # load and merge all input txt files
     df = load_all_ngsim_txt(data_folder)
@@ -149,6 +149,7 @@ def preprocess_all(data_folder="data", horizon=50):
     df = df.groupby('Vehicle_Global_ID', group_keys=False).apply(label_lane_changes)
 
     # reset lane_change labels for on-ramp -> aux -> off-ramp
+    # enabling just is leading to performance degradation
     #df = filter_ramp_transitions(df)
 
     # apply ground lane changes rules 

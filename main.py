@@ -59,18 +59,20 @@ def get_avg_prob_curve(test_results, class_idx, prob_col, window_size=30):
 # --- Main Execution ---
 
 def main():
-    # 1. Data Loading and Feature Engineering
+
+    #  Data Loading and Feature Engineering
     DATA_PATH = r"H:\GitHub\AD_Behavioral_Modeling\data"
     df = preprocess_all(DATA_PATH)
     df = calculate_features(df)
-
     features = [
-        "v_vel", "a_long", "v_lat", "Lane_ID", "v_lat_lag_5", "v_lat_lag_10", # "v_lat_accel", "lat_dist_moved_15f",  "a_lat",
-         #"lat_displacement_1s", # "a_long_std_1s", "is_special_lane", "can_go_right", "can_go_left",
-        "TTC", "actual_gap", "rel_speed" #"traffic_pressure", , "gap_rate_trend_1s", "gap_rate_of_change", 
+        "v_vel", "a_long", "v_lat", "Lane_ID", "v_lat_lag_5", "v_lat_lag_10", 
+         "lat_displacement_1s", "can_go_right", "can_go_left", "a_long_std_1s", 
+        "TTC", "actual_gap",  "gap_rate_trend_1s", "rel_speed"
     ]
-    
-    # 2. Train/Test Split
+    # "v_lat_accel", "lat_dist_moved_15f",  "a_lat", "a_long_std_1s", "is_special_lane", 
+    # "can_go_right", "can_go_left", "traffic_pressure", , "gap_rate_trend_1s", "gap_rate_of_change", "target_right_lag_gap", "target_right_lead_gap"
+
+    # Train/Test Split
     # Note: Hard mining can be integrated into data_split_with_sampling directly if desired.
     X_train, X_test, y_train, y_test = data_split_with_sampling(df, features, sampling_keep_factor=4)
 
@@ -78,10 +80,15 @@ def main():
         print("Data leakage detected! Check vehicle splits.")
         return
 
-    # 3. Model Training
+    custom_weights = {
+    0: 1.0,   # 'None' - Baseline importance
+    1: 3.0,   # 'Left' - 5x more important to get right
+    2: 10.0   # 'Right' - 10x more important to get right
+    }
+    # Model Training
     clf = RandomForestClassifier(
-        n_estimators=200,
-        class_weight="balanced",
+        n_estimators=100,
+        class_weight=custom_weights,
         max_depth=15,
         min_samples_leaf=10,
         max_features='sqrt',
@@ -90,7 +97,7 @@ def main():
     )
     clf.fit(X_train, y_train)
 
-    # 4. Feature Importance
+    # Feature Importance
     importances = pd.Series(clf.feature_importances_, index=features).sort_values(ascending=False)
     plt.figure(figsize=(8, 5))
     importances.plot(kind='barh', color='skyblue')
@@ -102,9 +109,6 @@ def main():
     # We apply smoothing to the probabilities to remove frame-by-frame 'jitter'
     y_probs_raw = clf.predict_proba(X_test)
 
-    # Post-process probabilities before thresholding
-    # Slightly penalize Right predictions to force higher certainty
-    #y_probs_raw[:, 2] = y_probs_raw[:, 2] * 0.9  # 10% 'Skepticism' factor for Right turns
     
     # Map back to Vehicle IDs to smooth within individual timelines
     # test_results = df.loc[X_test.index, ['Vehicle_Global_ID', 'Frame_Global_ID', 'Location']].copy()
@@ -118,20 +122,20 @@ def main():
     # test_results['prob_right_smooth'] = test_results.groupby('Vehicle_Global_ID')['prob_right'].transform(
     #     lambda x: x.rolling(5, center=True).mean()).fillna(test_results['prob_right'])
 
-    # # 6. Threshold Optimization
+    # # Threshold Optimization
     # y_probs_smooth = test_results[['prob_left_smooth', 'prob_right_smooth']].values
     # # Note: Binary check for optimization
     # thresh_left, f1_left = find_best_threshold((y_test == 1).astype(int), test_results['prob_left_smooth'])
     # thresh_right, f1_right = find_best_threshold((y_test == 2).astype(int), test_results['prob_right_smooth'])
 
-    # 2. Find the optimal thresholds for Class 1 and Class 2
+    # Find the optimal thresholds for Class 1 and Class 2
     thresh_left, f1_left = find_best_threshold((y_test == 1).astype(int), y_probs_raw[:, 1])
     thresh_right, f1_right = find_best_threshold((y_test == 2).astype(int), y_probs_raw[:, 2])
 
     print(f"Optimal Threshold (Left):  {thresh_left:.4f} | Max F1: {f1_left:.4f}")
     print(f"Optimal Threshold (Right): {thresh_right:.4f} | Max F1: {f1_right:.4f}")
 
-    # 7. Final Evaluation
+    # Final Evaluation
     y_pred_opt = apply_custom_thresholds(y_probs_raw, thresh_left, thresh_right)
     print("\n--- Optimized Classification Report ---")
     print(classification_report(y_test, y_pred_opt, target_names=['None', 'Left', 'Right']))
@@ -141,7 +145,7 @@ def main():
     ConfusionMatrixDisplay(cm, display_labels=['None', 'Left', 'Right']).plot(cmap='Blues')
     plt.show()
 
-    # 8. Anticipation Plot
+    # Anticipation Plot
     # window_size = 30
     # time_steps = np.arange(-window_size, 1) * 0.1
     # avg_left = get_avg_prob_curve(test_results, 1, 'prob_left_smooth', window_size)
