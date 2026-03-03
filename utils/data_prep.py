@@ -2,6 +2,79 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, GroupShuffleSplit
 
+def data_split_with_sampling_mining(df, features, sampling_keep_factor=4):
+    """
+    Splits data by Vehicle ID to prevent leakage and performs 
+    Hard Negative Mining on the training set.
+    """
+    # 1. Split based on Vehicle_Global_ID to prevent temporal leakage
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    
+    # We use the full df for splitting to keep track of indices correctly
+    train_idx, test_idx = next(gss.split(df, groups=df['Vehicle_Global_ID']))
+    
+    df_train = df.iloc[train_idx].copy()
+    df_test = df.iloc[test_idx].copy()
+
+    # 2. Identify Class 0 (No Change) vs. Maneuvers (1 & 2) in Training Set
+    idx_maneuver = df_train[df_train['lane_change'] != 0].index
+    idx_no_change = df_train[df_train['lane_change'] == 0].index
+
+    # 3. Define "Hard" Negatives (Class 0 samples that look like Lane Changes)
+    # These are frames where the car is swerving or closing gaps quickly
+    # Thresholds: v_lat > 0.12 m/s OR Gap closing faster than 1.2 m/s
+    is_hard_mask = (
+        (df_train.loc[idx_no_change, 'v_lat'].abs() > 0.25) | 
+        (df_train.loc[idx_no_change, 'gap_rate_of_change'] < -2.5)
+    )
+    
+    idx_hard_no_change = idx_no_change[is_hard_mask]
+    idx_easy_no_change = idx_no_change[~is_hard_mask]
+
+    # 4. Calculate Sampling Budget
+    # Target total Class 0 size based on your keep_factor
+    num_maneuvers = len(idx_maneuver)
+    total_no_change_budget = num_maneuvers * sampling_keep_factor
+    
+    # We keep ALL Hard Negatives first
+    num_hard_to_keep = len(idx_hard_no_change)
+    
+    # Remaining budget for "Boring" (Easy) samples
+    num_easy_to_sample = max(0, total_no_change_budget - num_hard_to_keep)
+
+    # 5. Sample the "Easy" Negatives
+    if num_easy_to_sample < len(idx_easy_no_change):
+        sampled_easy_idx = np.random.choice(
+            idx_easy_no_change, size=num_easy_to_sample, replace=False
+        )
+    else:
+        sampled_easy_idx = idx_easy_no_change
+
+    # 6. Combine Indices (Maneuvers + Hard Nones + Sampled Easy Nones)
+    final_train_indices = np.concatenate([
+        idx_maneuver, 
+        idx_hard_no_change, 
+        sampled_easy_idx
+    ])
+
+    # 7. Create Final Training and Test Sets
+    X_train_sub = df_train.loc[final_train_indices, features].sample(frac=1, random_state=42)
+    y_train_sub = df_train.loc[X_train_sub.index, 'lane_change']
+
+    X_test = df_test[features]
+    y_test = df_test['lane_change']
+
+    # --- Print Summary ---
+    print(f"Original Training Size: {len(df_train)}")
+    print(f"Hard Mining Summary:")
+    print(f" - Lane Changes Kept: {num_maneuvers}")
+    print(f" - Hard 'None' Cases Kept: {num_hard_to_keep}")
+    print(f" - Easy 'None' Cases Sampled: {len(sampled_easy_idx)}")
+    print(f"Final Training Size: {len(y_train_sub)}")
+    print("New Class Distribution:\n", y_train_sub.value_counts())
+    
+    return X_train_sub, X_test, y_train_sub, y_test
+
 def data_split_with_sampling(df, features, sampling_keep_factor=4):
 
 

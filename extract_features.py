@@ -1,6 +1,40 @@
 import numpy as np
 import pandas as pd
 
+def add_interaction_dynamics(df):
+    # Sort to ensure temporal consistency
+    df = df.sort_values(['Vehicle_Global_ID', 'Frame_Global_ID'])
+    
+    # 1. Gap Rate of Change (delta_gap over 1 second)
+    # Negative = closing in; Positive = pulling away
+    df['gap_rate_of_change'] = df.groupby('Vehicle_Global_ID')['actual_gap'].diff(periods=10)
+    
+    # 2. Velocity-to-Gap Ratio
+    # High speed + small gap = high pressure to change lanes
+    # Adding 1 to denominator to avoid division by zero
+    df['traffic_pressure'] = df['v_vel'] / (df['actual_gap'] + 1.0)
+    
+    # Handle NaNs from the diff/shift
+    df['gap_rate_of_change'] = df['gap_rate_of_change'].fillna(0)
+    
+    return df
+
+
+def add_displacement_features(df):
+    df = df.sort_values(['Vehicle_Global_ID', 'Frame_Global_ID'])
+    
+    # 1. Cumulative Lateral Displacement (last 1.5 seconds / 15 frames)
+    # This captures the "Net" movement.
+    df['lat_dist_moved_15f'] = df.groupby('Vehicle_Global_ID')['v_lat'].transform(
+        lambda x: x.rolling(15).sum() * 0.1 # Integrating velocity over 0.1s steps
+    ).fillna(0)
+    
+    # 2. Lateral Velocity Trend
+    # Is the car accelerating its sideway movement?
+    df['v_lat_accel'] = df.groupby('Vehicle_Global_ID')['v_lat'].diff().fillna(0)
+    
+    return df
+
 def calculate_features(df):
     # 1. Sort for consistent time-series calculations
     df = df.sort_values(['Vehicle_Global_ID', 'Frame_Global_ID']).reset_index(drop=True)
@@ -19,6 +53,8 @@ def calculate_features(df):
     # 5 frames = 0.5s, 10 frames = 1.0s
     df['v_lat_lag_5'] = df.groupby('Vehicle_Global_ID')['v_lat'].shift(5)
     df['v_lat_lag_10'] = df.groupby('Vehicle_Global_ID')['v_lat'].shift(10)
+
+    df = add_displacement_features(df)
 
     # --- Interactive Features (Lead Vehicle) ---
     print("Calculating Lead Vehicle Features...")
@@ -48,6 +84,9 @@ def calculate_features(df):
     df['actual_gap'] = (df['Local_Y_lead'] - df['Local_Y']) - (df['v_len_lead']/2 + df['v_len']/2)
     # Fill cases where there is no lead vehicle with a large constant
     df['actual_gap'] = df['actual_gap'].fillna(1000) 
+
+    # add gap_rate_of_change
+    df = add_interaction_dynamics(df)
 
     # Time-to-Collision (TTC)
     # Formula: Gap / Relative_Velocity (only if Relative_Velocity is negative, i.e., closing)
