@@ -107,7 +107,7 @@ def apply_lane_change_rules(df):
 
 
 # added lane change intent column to the data
-def label_lane_changes(group, horizon=30):
+def label_lane_changes(group, horizon=50):
     lanes = group['Lane_ID'].values
     n = len(lanes)
     labels = np.zeros(n, dtype=int)
@@ -149,7 +149,7 @@ def preprocess_all(data_folder="data", horizon=50):
     df = df.groupby('Vehicle_Global_ID', group_keys=False).apply(label_lane_changes)
 
     # reset lane_change labels for on-ramp -> aux -> off-ramp
-    df = filter_ramp_transitions(df)
+    #df = filter_ramp_transitions(df)
 
     # apply ground lane changes rules 
     df = apply_lane_change_rules(df)
