@@ -5,7 +5,9 @@ import numpy as np
 
 # load all trajectories.txt files & merge
 def load_all_ngsim_txt(data_folder):
-    
+    """
+    load all trajectories.txt files
+    """
     pattern = os.path.join(data_folder, '**', '*.txt')
     txt_files = glob.glob(pattern, recursive=True)
     all_dfs = []
@@ -41,8 +43,10 @@ def load_all_ngsim_txt(data_folder):
 
     return pd.concat(all_dfs, ignore_index=True)
 
-# handle Lane_ID change without actual Lane Change
+
 def filter_ramp_transitions(df):
+    """ handle Lane_ID change without actual Lane Change"""
+
     # Identify indices where a "lane change" is recorded
     # but it's just the ramp merging or the auxiliary exiting.
     
@@ -73,8 +77,10 @@ def filter_ramp_transitions(df):
 
     return df
 
-# apply ground lane change rules
+
 def apply_lane_change_rules(df):
+    """apply ground lane change rules"""
+
     # Initialize defaults
     df['can_go_left'] = 1
     df['can_go_right'] = 1
@@ -106,8 +112,8 @@ def apply_lane_change_rules(df):
     return df
 
 
-# added lane change intent column to the data
 def label_lane_changes(group, horizon=50):
+    """ add lane change intent column to the data for t secs before"""
     lanes = group['Lane_ID'].values
     n = len(lanes)
     labels = np.zeros(n, dtype=int)
@@ -139,8 +145,9 @@ def label_lane_changes(group, horizon=50):
     group['lane_change'] = labels
     return group
 
-# preprocess all data files and add lane change labels
+
 def preprocess_all(data_folder="data"):
+    """preprocess all data files and add lane change labels"""
 
     # load and merge all input txt files
     df = load_all_ngsim_txt(data_folder)

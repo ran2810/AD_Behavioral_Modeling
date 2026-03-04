@@ -101,7 +101,9 @@ def add_displacement_features(df):
     return df
 
 def calculate_features(df):
-    # 1. Sort for consistent time-series calculations
+    """ perform feature engineering for the model """
+
+    # Sort for consistent time-series calculations
     df = df.sort_values(['Vehicle_Global_ID', 'Frame_Global_ID']).reset_index(drop=True)
     dt = 0.1  # 100ms interval
 
@@ -110,7 +112,7 @@ def calculate_features(df):
     # Lateral Velocity: Change in Local_X over time
     df['v_lat'] = df.groupby('Vehicle_Global_ID')['Local_X'].diff() / dt
 
-    # # # We saw spikes of +4.0; highway moves rarely exceed 1.0 m/s
+    # # # spikes of +4.0; highway moves rarely exceed 1.0 m/s
     # df['v_lat'] = df['v_lat'].clip(-1.2, 1.2)
     
     # # (Median Filter) 
@@ -137,7 +139,7 @@ def calculate_features(df):
     print("Calculating Lead Vehicle Features...")
     
     # Create a mapping for quick lookup of lead vehicle stats per frame
-    # We need v_vel and Local_Y of the 'Preceeding' vehicle ID
+    # need v_vel and Local_Y of the 'Preceeding' vehicle ID
     lead_info = df[['Frame_Global_ID', 'Vehicle_Global_ID', 'v_vel', 'Local_Y', 'v_len']].copy()
     lead_info = lead_info.rename(columns={
         'Vehicle_Global_ID': 'Preceeding',
