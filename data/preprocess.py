@@ -16,7 +16,7 @@ def load_all_ngsim_txt(data_folder):
     frame_offset = 0
 
     for f in txt_files:
-        #print("reading file", f)
+        print("reading file", f)
         df = pd.read_csv(f, sep=r"\s+", header=None, 
                          names=["Vehicle_ID", "Frame_ID", "Total_Frames", "Global_Time", "Local_X", "Local_Y", "Global_X", 
                                 "Global_Y", "v_len", "v_width", "v_class", "v_vel", "v_acc", "Lane_ID", "Preceeding", 
