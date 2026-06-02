@@ -3,5 +3,16 @@
 *.ipynb_checkpoints
 
 # ignore label files
-*.csv
+data/**/*.csv
 data/**/*.txt
+data/**/*.pdf
+data/highD-dataset-v1.0/
+
+#ignore old results - keep the best
+results/old/*
+
+#ignore vscode settings
+.vscode/*
+
+#ignore notebook files
+notebooks/*

@@ -1,0 +1,6 @@
+model,train_dataset,test_dataset,class,precision,recall,f1,support
+RF,ngsim,ngsim,,0.9808,0.9835,0.9822,1698261
+RF,ngsim,ngsim,None,0.9814,0.9858,0.9836,1698261
+RF,ngsim,ngsim,Left,0.4845,0.4565,0.4701,38805
+RF,ngsim,ngsim,Right,0.4017,0.2534,0.3108,14462
+RF,ngsim,ngsim,macro avg,0.6226,0.5653,0.5882,1751528

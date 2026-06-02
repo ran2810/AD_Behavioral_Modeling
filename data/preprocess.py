@@ -153,7 +153,14 @@ def preprocess_all(data_folder="data"):
     df = load_all_ngsim_txt(data_folder)
 
     # apply lane change labels per vehicle group
+    # Preserve Vehicle_Global_ID before apply — newer pandas versions drop the groupby key
+    vgid = df['Vehicle_Global_ID'].copy()
+    frame_gid = df['Frame_Global_ID'].copy()
     df = df.groupby('Vehicle_Global_ID', group_keys=False).apply(label_lane_changes)
+    if 'Vehicle_Global_ID' not in df.columns:
+        df['Vehicle_Global_ID'] = vgid
+    if 'Frame_Global_ID' not in df.columns:
+        df['Frame_Global_ID'] = frame_gid
 
     # reset lane_change labels for on-ramp -> aux -> off-ramp
     # enabling just is leading to performance degradation
