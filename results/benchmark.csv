@@ -1,6 +1,17 @@
 model,train_dataset,test_dataset,class,precision,recall,f1,support
-RF,ngsim,ngsim,,0.9808,0.9835,0.9822,1698261
-RF,ngsim,ngsim,None,0.9814,0.9858,0.9836,1698261
-RF,ngsim,ngsim,Left,0.4845,0.4565,0.4701,38805
-RF,ngsim,ngsim,Right,0.4017,0.2534,0.3108,14462
-RF,ngsim,ngsim,macro avg,0.6226,0.5653,0.5882,1751528
+RF,ngsim,ngsim,None,0.9821,0.9854,0.9837,1281866
+RF,ngsim,ngsim,Left,0.4908,0.4432,0.4658,28376
+RF,ngsim,ngsim,Right,0.331,0.281,0.304,10348
+RF,ngsim,ngsim,macro avg,0.6013,0.5699,0.5845,1320590
+RF,highd,highd,None,0.987,0.9951,0.991,5747599
+RF,highd,highd,Left,0.8139,0.6314,0.7111,102093
+RF,highd,highd,Right,0.8332,0.6419,0.7252,105833
+RF,highd,highd,macro avg,0.878,0.7561,0.8091,5955525
+RF,ngsim,highd,None,0.9701,0.9926,0.9812,5747599
+RF,ngsim,highd,Left,0.2803,0.1392,0.186,102093
+RF,ngsim,highd,Right,0.7438,0.1714,0.2786,105833
+RF,ngsim,highd,macro avg,0.6647,0.4344,0.4819,5955525
+RF,highd,ngsim,None,0.9742,0.9818,0.978,1281866
+RF,highd,ngsim,Left,0.3121,0.1575,0.2093,28376
+RF,highd,ngsim,Right,0.0559,0.0784,0.0653,10348
+RF,highd,ngsim,macro avg,0.4474,0.4059,0.4175,1320590

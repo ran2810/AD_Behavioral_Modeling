@@ -1,7 +1,30 @@
-import pandas as pd
+import gc
 import glob
 import os
 import numpy as np
+import pandas as pd
+
+# Explicit dtypes keep each file at ~130 MB instead of ~260 MB (float32 vs float64)
+_NGSIM_DTYPES = {
+    'Vehicle_ID':    np.int32,
+    'Frame_ID':      np.int32,
+    'Total_Frames':  np.int32,
+    'Global_Time':   np.int64,
+    'Local_X':       np.float32,
+    'Local_Y':       np.float32,
+    'Global_X':      np.float32,
+    'Global_Y':      np.float32,
+    'v_len':         np.float32,
+    'v_width':       np.float32,
+    'v_class':       np.int8,
+    'v_vel':         np.float32,
+    'v_acc':         np.float32,
+    'Lane_ID':       np.int8,
+    'Preceeding':    np.int32,
+    'Following':     np.int32,
+    'Space_Headway': np.float32,
+    'Time_Headway':  np.float32,
+}
 
 # load all trajectories.txt files & merge
 def load_all_ngsim_txt(data_folder):
@@ -15,18 +38,18 @@ def load_all_ngsim_txt(data_folder):
     vehicle_offset = 0
     frame_offset = 0
 
+    # each file covers a different time window; offsets ensure IDs are globally unique
     for f in txt_files:
         print("reading file", f)
-        df = pd.read_csv(f, sep=r"\s+", header=None, 
-                         names=["Vehicle_ID", "Frame_ID", "Total_Frames", "Global_Time", "Local_X", "Local_Y", "Global_X", 
-                                "Global_Y", "v_len", "v_width", "v_class", "v_vel", "v_acc", "Lane_ID", "Preceeding", 
-                                "Following", "Space_Headway", "Time_Headway"])
+        col_names = list(_NGSIM_DTYPES.keys())
+        df = pd.read_csv(f, sep=r"\s+", header=None,
+                         names=col_names, dtype=_NGSIM_DTYPES)
 
-        # Create global IDs by adding max value as offset
+        # add offset so Vehicle_ID 1 in file A != Vehicle_ID 1 in file B
         df["Vehicle_Global_ID"] = df["Vehicle_ID"] + vehicle_offset
         df["Frame_Global_ID"] = df["Frame_ID"] + frame_offset
 
-        # store location
+        # tag source location — used later for lane topology rules
         if 'US-101' in f:
             df['Location'] = 'US-101'
         elif 'I-80' in f:
@@ -34,14 +57,19 @@ def load_all_ngsim_txt(data_folder):
         else:
             print("File is not part of the I-80/US-101 data", f)
 
-        # Store original max values for next file
+        # shift offsets by the max in this file before reading the next
         vehicle_offset += df["Vehicle_ID"].max()
         frame_offset += df["Frame_ID"].max()
         #print("vehicle_offset", vehicle_offset)
         #print("frame_offset", frame_offset)
         all_dfs.append(df)
+        del df
+        gc.collect()
 
-    return pd.concat(all_dfs, ignore_index=True)
+    combined = pd.concat(all_dfs, ignore_index=True)
+    del all_dfs
+    gc.collect()
+    return combined
 
 
 def filter_ramp_transitions(df):
@@ -118,22 +146,23 @@ def label_lane_changes(group, horizon=50):
     n = len(lanes)
     labels = np.zeros(n, dtype=int)
 
+    # label every frame based on what the vehicle will do in the next `horizon` frames
     for i in range(n):
         current_lane = lanes[i]
-        
-        # Define the search window (from now up to 5s in the future)
-        # We use i+1 to ensure we are looking at the "future"
+
+        # look ahead from i+1 so we never include the current frame in the "future"
         future_window = lanes[i+1 : i + horizon + 1]
-        
+
+        # last few frames of a trajectory have no future — label as No Change
         if len(future_window) == 0:
             labels[i] = 0
             continue
-            
-        # Find the first lane in the future window that is different from current
-        # This captures the 'intent' the moment it enters the 5s horizon
+
+        # grab only the frames where the lane actually changed
         diff_lanes = future_window[future_window != current_lane]
-        
+
         if len(diff_lanes) > 0:
+            # use the first different lane to determine direction
             first_future_lane = diff_lanes[0]
             if first_future_lane < current_lane:
                 labels[i] = 1  # Anticipating Left Change

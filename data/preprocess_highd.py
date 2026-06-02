@@ -16,11 +16,13 @@ def load_all_highd_csv(data_folder):
     if not track_files:
         raise FileNotFoundError(f"No HighD track files found in: {data_folder}")
 
-    # Build a lookup from tracksMeta: id -> (width, height, drivingDirection, class)
+    # Build a lookup from tracksMeta: (recording_id, vehicle_id) -> vehicle properties
+    # needed because tracks.csv has no vehicle dimensions or direction info inline
     meta_lookup = {}
     for mf in meta_files:
         meta_df = pd.read_csv(mf)
         recording_id = int(os.path.basename(mf).split('_')[0])
+        # each row is one vehicle track in this recording
         for _, row in meta_df.iterrows():
             meta_lookup[(recording_id, int(row['id']))] = {
                 'v_len': row['width'],     # HighD 'width' = vehicle length (driving direction)
@@ -106,22 +108,25 @@ def apply_lane_change_rules_highd(df):
     df['can_go_right'] = 1
     df['is_special_lane'] = 0
 
+    # lane topology varies per recording — process each recording+direction pair separately
     for rec_id, rec_df in df.groupby('Recording_ID'):
+        # direction 1 = upper lanes (moving left), direction 2 = lower lanes (moving right)
         for direction in [1, 2]:
             mask = (df['Recording_ID'] == rec_id) & (df['drivingDirection'] == direction)
+            # skip if no vehicles for this direction in this recording
             if mask.sum() == 0:
                 continue
 
             valid_lanes = sorted(df.loc[mask, 'Lane_ID'].unique())
 
-            # Boundary lanes (laneId=1 and max) are not real driving lanes
-            # but vehicles rarely appear there; just protect the edges
+            # laneId 1 and the last id are boundary areas, not real driving lanes
+            # actual driveable lanes sit between them; min/max here are the outermost used
             min_lane = valid_lanes[0]
             max_lane = valid_lanes[-1]
 
-            # Leftmost lane: can't go further left
+            # leftmost lane in driving direction — no lane to the left
             df.loc[mask & (df['Lane_ID'] == min_lane), 'can_go_left'] = 0
-            # Rightmost lane: can't go further right
+            # rightmost lane — no lane to the right
             df.loc[mask & (df['Lane_ID'] == max_lane), 'can_go_right'] = 0
 
     return df
@@ -138,17 +143,22 @@ def label_lane_changes_highd(group, horizon=50):
     n = len(lanes)
     labels = np.zeros(n, dtype=int)
 
+    # label each frame based on which lane the vehicle occupies within the next horizon frames
     for i in range(n):
         current_lane = lanes[i]
+        # i+1 ensures we only look forward, not at the current frame
         future_window = lanes[i + 1: i + horizon + 1]
 
+        # end of trajectory — no future to look at
         if len(future_window) == 0:
             labels[i] = 0
             continue
 
+        # extract only the frames where the lane actually changed
         diff_lanes = future_window[future_window != current_lane]
 
         if len(diff_lanes) > 0:
+            # direction determined by first different lane encountered
             first_future_lane = diff_lanes[0]
             if first_future_lane < current_lane:
                 labels[i] = 1  # Left lane change
@@ -166,7 +176,9 @@ def preprocess_highd(data_folder):
     Load, label, and prepare HighD data for feature engineering.
     Returns a DataFrame with the same schema expected by calculate_features(dataset='highd').
     """
-    highd_folder = os.path.join(data_folder, 'highD-dataset-v1.0\data')
+    # expects XX_tracks.csv and XX_tracksMeta.csv files
+    temp_ = os.path.join('highD-dataset-v1.0', 'data')
+    highd_folder = os.path.join(data_folder, temp_)
     df = load_all_highd_csv(highd_folder)
 
     # Sort by vehicle and frame before labeling

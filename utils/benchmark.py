@@ -18,6 +18,7 @@ def metrics_to_rows(y_true, y_pred, model, train_dataset, test_dataset):
     )
 
     rows = []
+    # one row per class so the CSV can be filtered by class later
     for cls in CLASS_NAMES:
         rows.append({
             'model':         model,
@@ -53,15 +54,16 @@ def save_results(rows, filepath="results/benchmark.csv"):
     new_df = pd.DataFrame(rows)
 
     if os.path.exists(filepath):
+        # append to existing file and keep only the most recent run per experiment+class
         existing = pd.read_csv(filepath)
         combined = pd.concat([existing, new_df], ignore_index=True)
-        # Deduplicate: keep last run for same model/train/test/class combo
         combined = combined.drop_duplicates(
             subset=['model', 'train_dataset', 'test_dataset', 'class'],
             keep='last'
         )
         combined.to_csv(filepath, index=False)
     else:
+        # first run — create the file
         new_df.to_csv(filepath, index=False)
 
     print(f"Benchmark results saved to {filepath}")

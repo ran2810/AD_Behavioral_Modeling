@@ -16,3 +16,7 @@ results/old/*
 
 #ignore notebook files
 notebooks/*
+
+#models
+*.joblib
+*.pth

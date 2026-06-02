@@ -1,3 +1,4 @@
+import gc
 import numpy as np
 import pandas as pd
 from filterpy.kalman import KalmanFilter
@@ -28,15 +29,19 @@ def apply_kalman_smoothing(df, col_name='v_lat'):
     kf.R = 1.0    # Measurement noise
     kf.Q = 0.01   # Process noise
 
+    # process each vehicle separately — avoids filter state bleeding across different cars
     for vid, group in df.groupby('Vehicle_Global_ID'):
         v_data = group[col_name].values
 
+        # reset filter state at the start of each vehicle's trajectory
         initial_v = np.clip(v_data[0], -1.0, 1.0)
         kf.x = np.array([[0.], [initial_v]])
 
         group_smoothed = []
         for z in v_data:
+            # predict step: project state forward one time step
             kf.predict()
+            # update step: correct with clamped measurement (spikes > 1.0 m/s are noise)
             kf.update(np.clip(z, -1.0, 1.0))
             group_smoothed.append(kf.x[1, 0])
 
@@ -124,6 +129,8 @@ def _add_ngsim_lead_features(df):
     })
 
     df = pd.merge(df, lead_info, on=['Frame_Global_ID', 'Preceeding'], how='left')
+    del lead_info
+    gc.collect()
 
     df['rel_speed'] = (df['v_vel_lead'] - df['v_vel']).fillna(0)
 
@@ -155,6 +162,8 @@ def _convert_ngsim_to_si(df):
     ]
     existing_cols = [c for c in cols_to_scale if c in df.columns]
     df[existing_cols] = df[existing_cols] * FT_TO_M
+    # Downcast back to float32 after scaling (multiplication promotes to float64)
+    df[existing_cols] = df[existing_cols].astype(np.float32)
     return df
 
 
@@ -205,7 +214,7 @@ def calculate_features(df, dataset='ngsim'):
     df = df.sort_values(['Vehicle_Global_ID', 'Frame_Global_ID']).reset_index(drop=True)
 
     if dataset == 'ngsim':
-        fps = 10
+        fps = 10  # NGSIM recorded at 10 Hz
 
         print("Calculating NGSIM kinematics...")
         df = _add_ngsim_kinematics(df)
@@ -221,7 +230,7 @@ def calculate_features(df, dataset='ngsim'):
         df = _convert_ngsim_to_si(df)
 
     elif dataset == 'highd':
-        fps = 25
+        fps = 25  # HighD recorded at 25 Hz
 
         print("Calculating HighD lead-vehicle features...")
         # v_lat and a_long already normalized in preprocess_highd
