@@ -54,6 +54,27 @@ def data_split_with_sampling(df, features, sampling_keep_factor=4):
     return X_train_sub, X_test, y_train_sub, y_test
 
 
+def lstm_train_test_split(df, features, test_size=0.2, random_state=42):
+    """
+    Vehicle-grouped train/test split for LSTM.
+    Returns full sorted trajectories — NO undersampling — so the dataset
+    can build contiguous sliding windows. Class imbalance is handled by
+    inverse-frequency WeightedRandomSampler inside LaneChangeSequenceDataset.
+    """
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    train_idx, test_idx = next(gss.split(df[features], df['lane_change'], groups=df['Vehicle_Global_ID']))
+
+    # Sort each split by vehicle + frame so windows are temporally contiguous
+    df_train = df.iloc[train_idx].sort_values(['Vehicle_Global_ID', 'Frame_Global_ID']).reset_index(drop=True)
+    df_test  = df.iloc[test_idx].sort_values(['Vehicle_Global_ID', 'Frame_Global_ID']).reset_index(drop=True)
+
+    print(f"LSTM split — Train vehicles: {df_train['Vehicle_Global_ID'].nunique()}  "
+          f"Test vehicles: {df_test['Vehicle_Global_ID'].nunique()}")
+    print("Train labels:\n", df_train['lane_change'].value_counts().to_string())
+
+    return df_train, df_test
+
+
 def check_data_leakage(df, X_train, X_test):
     """
     check data leakage - same vehicle ID exists in train and test

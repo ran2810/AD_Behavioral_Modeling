@@ -1,11 +1,8 @@
 """
-RF Hyperparameter Tuning
-Grid search over keep_factor and w_right using a vehicle-stratified sample.
+RF Hyperparameter Tuning optimized for NGSIM dataset only due to class imbalance of less right LCs over left ones
+Grid search over keep_factor and w_right using a vehicle data sample
 Saves results to results/tune_rf.csv.
 
-Usage:
-    python tune_rf.py                    # 30% vehicle sample (fast)
-    python tune_rf.py --sample 1.0       # full data
 """
 import warnings
 import argparse

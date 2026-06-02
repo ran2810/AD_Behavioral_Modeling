@@ -166,7 +166,7 @@ def preprocess_highd(data_folder):
     Load, label, and prepare HighD data for feature engineering.
     Returns a DataFrame with the same schema expected by calculate_features(dataset='highd').
     """
-    highd_folder = os.path.join(data_folder, 'HighD_data')
+    highd_folder = os.path.join(data_folder, 'highD-dataset-v1.0\data')
     df = load_all_highd_csv(highd_folder)
 
     # Sort by vehicle and frame before labeling
